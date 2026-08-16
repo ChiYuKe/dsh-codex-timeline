@@ -5,7 +5,8 @@
 - 在会话右上角显示"消息导航"按钮；
 - 在聊天区域左侧按消息位置绘制纵向刻度；
 - 悬停刻度显示消息摘要和上下文注入来源；
-- 点击刻度平滑跳转到对应消息；
+- 点击刻度平滑跳转到对应消息，目标消息短暂高亮；
+- 按住并拖动刻度可快速扫览消息；
 - 监听消息追加、加载历史、窗口尺寸和滚动状态变化。
 
 这个插件只使用 DSH 已渲染的会话节点，不修改会话数据，也不执行 Host 命令。
@@ -16,6 +17,12 @@
 
 ```sh
 dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline
+```
+
+推荐锁定版本安装（后续推送不会悄悄改变实际运行的内容）：
+
+```sh
+dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline#v0.1.1
 ```
 
 仓库已提交构建产物 `lib/`，且没有 `prepare` 脚本，因此**不需要 allowBuilds 授权**。也可以从本地 checkout 安装：
