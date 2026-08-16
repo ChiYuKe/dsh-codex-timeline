@@ -1,5 +1,7 @@
 # dsh-message-map
 
+[![npm version](https://img.shields.io/npm/v/dsh-message-map)](https://www.npmjs.com/package/dsh-message-map)
+
 为 DSH 移植 Codex 风格的会话消息导航轨道（Message map）。
 
 - 在会话右上角显示"消息导航"按钮；
@@ -64,6 +66,12 @@ pnpm build     # tsdown 重新生成 lib/index.js 与 lib/client.js
   由 DSH web 壳的 loader 模块表提供，运行时经 `window.__ModuleLoader__` 解析。
 - devDependencies：`tsdown` + `lightningcss`，用于自包含构建。
 
-## 发布到 npm（可选）
+## 从 npm 安装
 
-`files` 已包含 `lib/`、`cordis.patch.yml`、`README.md` 与 `LICENSE`；`npm publish` 后用户可直接 `dsh plugin --profile web add dsh-message-map`。
+已发布到 npm，用户可直接安装：
+
+```sh
+dsh plugin --profile web add dsh-message-map
+```
+
+查看包：https://www.npmjs.com/package/dsh-message-map
