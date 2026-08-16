@@ -34,6 +34,7 @@ export type TimelineProps = PropsRuntime<'conversation.session.header.utilities'
 const MINIMUM_MARKERS = 4
 const PREVIEW_DELAY_MS = 150
 const ROW_HEIGHT = 10
+const CLICK_JUMP_MS = 200
 
 function clean(value: string): string {
   return value.replace(/\s+/gu, ' ').trim()
@@ -160,6 +161,7 @@ export function Timeline({ t }: TimelineProps) {
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>())
   const pointerSession = useRef<PointerSession | null>(null)
   const previewTimer = useRef<number | null>(null)
+  const scrollAnimRef = useRef<number | null>(null)
   const ignoreNextClick = useRef(false)
 
   const clearPreviewTimer = (): void => {
@@ -226,6 +228,7 @@ export function Timeline({ t }: TimelineProps) {
       window.removeEventListener('resize', schedule)
       clearPreviewTimer()
       if (frame !== null) window.cancelAnimationFrame(frame)
+      if (scrollAnimRef.current !== null) window.cancelAnimationFrame(scrollAnimRef.current)
     }
   }, [t])
 
@@ -249,11 +252,35 @@ export function Timeline({ t }: TimelineProps) {
 
   const selected = useMemo(() => markers.find(marker => marker.key === hovered) ?? null, [hovered, markers])
 
+  const animateScrollTo = (scrollport: HTMLElement, targetTop: number, duration: number): void => {
+    if (scrollAnimRef.current !== null) {
+      window.cancelAnimationFrame(scrollAnimRef.current)
+      scrollAnimRef.current = null
+    }
+    const startTop = scrollport.scrollTop
+    const distance = targetTop - startTop
+    if (Math.abs(distance) < 1) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || duration <= 0) {
+      scrollport.scrollTo({ top: targetTop, behavior: 'auto' })
+      return
+    }
+    const startTime = performance.now()
+    const ease = (progress: number): number => 1 - Math.pow(1 - progress, 3)
+    const step = (now: number): void => {
+      const progress = Math.min(1, (now - startTime) / duration)
+      scrollport.scrollTo({ top: startTop + distance * ease(progress), behavior: 'auto' })
+      scrollAnimRef.current = progress < 1 ? window.requestAnimationFrame(step) : null
+    }
+    scrollAnimRef.current = window.requestAnimationFrame(step)
+  }
+
   const scrollToMarker = (marker: Marker, behavior: ScrollBehavior): void => {
     const scrollport = scrollportRef.current
     if (scrollport !== null) {
       const rowTop = marker.row.getBoundingClientRect().top - scrollport.getBoundingClientRect().top + scrollport.scrollTop
-      scrollport.scrollTo({ top: Math.max(0, rowTop - scrollport.clientHeight / 3), behavior })
+      const targetTop = Math.max(0, rowTop - scrollport.clientHeight / 3)
+      if (behavior === 'smooth') animateScrollTo(scrollport, targetTop, CLICK_JUMP_MS)
+      else scrollport.scrollTo({ top: targetTop, behavior })
     } else {
       marker.row.scrollIntoView({ behavior, block: 'start' })
     }
