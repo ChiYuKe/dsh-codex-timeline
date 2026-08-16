@@ -250,7 +250,13 @@ export function Timeline({ t }: TimelineProps) {
   const selected = useMemo(() => markers.find(marker => marker.key === hovered) ?? null, [hovered, markers])
 
   const scrollToMarker = (marker: Marker, behavior: ScrollBehavior): void => {
-    marker.row.scrollIntoView({ behavior, block: 'start' })
+    const scrollport = scrollportRef.current
+    if (scrollport !== null) {
+      const rowTop = marker.row.getBoundingClientRect().top - scrollport.getBoundingClientRect().top + scrollport.scrollTop
+      scrollport.scrollTo({ top: Math.max(0, rowTop - scrollport.clientHeight / 3), behavior })
+    } else {
+      marker.row.scrollIntoView({ behavior, block: 'start' })
+    }
     flashRow(marker.row)
   }
 
@@ -269,9 +275,20 @@ export function Timeline({ t }: TimelineProps) {
     pointerSession.current = null
     setScrubbing(false)
     setScrubTarget(null)
-    ignoreNextClick.current = session.moved
     if (session.captureTarget.hasPointerCapture?.(event.pointerId)) {
       session.captureTarget.releasePointerCapture?.(event.pointerId)
+    }
+    // Pointer capture retargets the derived click to the rail, so a plain
+    // click never reaches the marker button's onClick. Jump on pointerup
+    // instead, and swallow any click the browser still dispatches to the
+    // button (the guard self-clears on the next task).
+    ignoreNextClick.current = true
+    window.setTimeout(() => {
+      ignoreNextClick.current = false
+    }, 0)
+    if (!session.moved && event.type === 'pointerup') {
+      const marker = markers.find(marker => marker.key === session.startKey) ?? null
+      if (marker !== null) scrollToMarker(marker, 'smooth')
     }
   }
 
