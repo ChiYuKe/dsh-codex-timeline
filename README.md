@@ -18,7 +18,7 @@
 
 ## 安装
 
-从 GitHub 安装：
+**从 GitHub 安装（其他用户使用）：**
 
 ```sh
 dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline
@@ -30,11 +30,15 @@ dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline
 dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline#v0.1.0
 ```
 
-仓库已提交构建产物 `lib/`，且没有 `prepare` 脚本，因此**不需要 allowBuilds 授权**。也可以从本地 checkout 安装（`./dsh-codex-timeline` 是相对路径示例——从"包含该插件目录"的位置执行；换成你本机的实际相对路径或绝对路径均可）：
+仓库已提交构建产物 `lib/`，且没有 `prepare` 脚本，因此**不需要 allowBuilds 授权**，装完即可使用。
+
+**本地安装（开发/测试用，路径指向包含 `package.json` 的插件目录，相对路径或绝对路径均可）：**
 
 ```sh
-dsh plugin --profile web add ./dsh-codex-timeline
+dsh plugin --profile web add /path/to/dsh-codex-timeline
 ```
+
+本地安装为 link 方式：修改 `src/` 后需先 `pnpm build` 重新构建 `lib/`，再刷新页面生效。
 
 ## 使用
 
