@@ -2,25 +2,6 @@
   display: inline-flex;
 }
 
-.trigger {
-  align-items: center;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  color: var(--text-secondary, #c6cad4);
-  cursor: pointer;
-  display: inline-flex;
-  font: inherit;
-  min-height: 30px;
-  padding: 0 10px;
-}
-
-.trigger:hover,
-.trigger[aria-expanded='true'] {
-  background: var(--fill-tertiary, #3a3d45);
-  color: var(--text-primary, #fff);
-}
-
 .portal {
   inset: 0;
   pointer-events: none;
@@ -28,85 +9,193 @@
   z-index: 940;
 }
 
-.rail {
+.railShell {
+  animation: rail-in .15s cubic-bezier(.23, 1, .32, 1);
   pointer-events: auto;
   position: fixed;
-  width: 26px;
+  transform: translateY(-50%);
 }
 
-.track {
-  background: color-mix(in srgb, var(--border-primary, #4b4f59) 82%, transparent);
-  border-radius: 2px;
-  height: 100%;
-  left: 9px;
-  position: absolute;
-  top: 0;
-  width: 2px;
+@keyframes rail-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.rail {
+  --edge-fade-distance: 40px;
+  -ms-overflow-style: none;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--edge-fade-distance),
+    #000 calc(100% - var(--edge-fade-distance)),
+    transparent
+  );
+  max-width: 36px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+.markerList {
+  display: flex;
+  flex-direction: column;
+}
+
+.markerButton {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 10px;
+  height: 10px;
+  outline: none;
+  padding: 0;
+  width: 36px;
+}
+
+.markerSlot {
+  align-items: center;
+  display: flex;
+  height: 2px;
+  width: 30px;
 }
 
 .marker {
-  background: var(--text-tertiary, #858b99);
-  border: 0;
-  border-radius: 2px;
-  cursor: pointer;
+  --marker-progress: 0;
+  background-color: var(--dsw-alias-label-secondary, #aeb2bb);
+  display: block;
   height: 2px;
-  left: 0;
-  min-width: 20px;
-  padding: 0;
-  position: absolute;
-  transform: translateY(-1px);
-  transition: background .12s ease, height .12s ease, min-width .12s ease;
+  opacity: .4;
+  transform: scaleX(calc(.2308 + .7692 * var(--marker-progress)));
+  transform-origin: left center;
+  transition: transform .16s linear(0, .398 10%, .682 20%, .843 30%, .925 40%, .972 50%, 1.004 60%, 1.008 70%, 1.003 80%, 1);
+  width: 26px;
 }
 
-.marker:hover,
-.marker[data-active='true'] {
-  background: var(--dsw-static-deepseek-500, #6e9cf5);
-  height: 4px;
-  min-width: 26px;
+.markerButton[aria-current='true'] .marker {
+  background-color: var(--dsw-alias-label-primary, #f0f2f6);
+  opacity: .6;
 }
 
-.marker[data-kind='context'] { background: #8a83d9; }
-.marker[data-kind='user'] { background: #b98de4; }
-.marker[data-kind='assistant'] { background: #87aee9; }
-.marker[data-kind='tool'] { background: #8b939f; }
+.markerButton:has(+ .markerButton[data-scrub-target]) .marker,
+.markerButton[data-scrub-target] + .markerButton .marker {
+  --marker-progress: .7;
+}
+
+.markerButton:has(+ .markerButton + .markerButton[data-scrub-target]) .marker,
+.markerButton[data-scrub-target] + .markerButton + .markerButton .marker {
+  --marker-progress: .4;
+}
+
+.markerButton:has(+ .markerButton + .markerButton + .markerButton[data-scrub-target]) .marker,
+.markerButton[data-scrub-target] + .markerButton + .markerButton + .markerButton .marker {
+  --marker-progress: .2;
+}
+
+.markerButton:focus-visible .marker,
+.markerButton[data-scrub-target] .marker {
+  --marker-progress: 1;
+  background-color: var(--dsw-alias-label-primary, #f0f2f6);
+  opacity: 1;
+}
+
+.rail[data-scrubbing] .marker {
+  transition-duration: 0s;
+}
+
+.rail[data-scrubbing] .markerButton[aria-current='true']:not([data-scrub-target]) .marker {
+  background-color: var(--dsw-alias-label-secondary, #aeb2bb);
+  opacity: .4;
+}
+
+@media (hover: hover) {
+  .rail:not([data-scrubbing]):hover .markerButton[aria-current='true']:not(:hover):not(:focus-visible) .marker {
+    background-color: var(--dsw-alias-label-secondary, #aeb2bb);
+    opacity: .4;
+  }
+
+  .rail:not([data-scrubbing]):hover .markerButton:has(+ .markerButton:hover) .marker,
+  .rail:not([data-scrubbing]):hover .markerButton:hover + .markerButton .marker {
+    --marker-progress: .7;
+  }
+
+  .rail:not([data-scrubbing]):hover .markerButton:has(+ .markerButton + .markerButton:hover) .marker,
+  .rail:not([data-scrubbing]):hover .markerButton:hover + .markerButton + .markerButton .marker {
+    --marker-progress: .4;
+  }
+
+  .rail:not([data-scrubbing]):hover .markerButton:has(+ .markerButton + .markerButton + .markerButton:hover) .marker,
+  .rail:not([data-scrubbing]):hover .markerButton:hover + .markerButton + .markerButton + .markerButton .marker {
+    --marker-progress: .2;
+  }
+
+  .rail:not([data-scrubbing]):hover .markerButton:hover .marker {
+    --marker-progress: 1;
+    background-color: var(--dsw-alias-label-primary, #f0f2f6);
+    opacity: 1;
+  }
+}
 
 .preview {
-  background: var(--dsw-alias-fill-primary, #303136);
-  border: 1px solid var(--dsw-alias-line-primary, #4a4d55);
-  border-radius: 9px;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, .35);
+  animation: preview-in .12s cubic-bezier(.23, 1, .32, 1);
+  backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--dsw-alias-surface-elevated-secondary, #323337) 95%, transparent);
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .35), 0 2px 8px rgba(0, 0, 0, .22);
+  box-sizing: border-box;
   color: var(--dsw-alias-label-primary, #f0f2f6);
-  max-width: min(380px, calc(100vw - 80px));
-  min-width: 220px;
-  padding: 12px 14px;
-  pointer-events: auto;
+  max-width: calc(100vw - 16px);
+  overflow: hidden;
+  padding: 8px;
+  pointer-events: none;
   position: fixed;
+  transition: top .08s cubic-bezier(.23, 1, .32, 1);
+  width: 320px;
+}
+
+@keyframes preview-in {
+  from { opacity: 0; transform: translateX(-3px) scale(.99); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 .previewTitle {
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.35;
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  font-weight: 600;
+  gap: 6px;
+  line-height: 20px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .previewText {
-  color: var(--dsw-alias-label-secondary, #c2c6cf);
-  font-size: 12px;
-  line-height: 1.5;
-  margin: 7px 0 0;
-  max-height: 72px;
+  color: var(--dsw-alias-label-secondary, #b9bdc6);
+  display: -webkit-box;
+  font-size: 14px;
+  line-height: 20px;
+  margin: 4px 0 0;
+  max-height: 60px;
   overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
-.previewMeta {
-  color: var(--dsw-alias-label-tertiary, #9aa0ad);
-  font-size: 11px;
-  line-height: 1.4;
-  margin-top: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+@media (prefers-reduced-motion: reduce) {
+  .marker,
+  .preview,
+  .railShell {
+    animation-duration: 0s;
+    transition-duration: 0s;
+  }
 }

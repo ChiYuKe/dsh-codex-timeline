@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TimelineLocaleKey } from './locales.ts'
 import css from './Timeline.module.css'
@@ -9,23 +9,31 @@ type MarkerKind = 'context' | 'user' | 'assistant' | 'tool' | 'other'
 
 interface Marker {
   readonly key: string
-  readonly kind: MarkerKind
-  readonly ratio: number
   readonly title: string
   readonly text: string
-  readonly source: string | null
   readonly row: HTMLElement
 }
 
 interface RailLayout {
   readonly left: number
-  readonly top: number
-  readonly height: number
-  readonly right: number
+  readonly centerY: number
+  readonly maxHeight: number
+}
+
+interface PointerSession {
+  readonly pointerId: number
+  readonly captureTarget: HTMLElement
+  readonly startKey: string
+  currentKey: string
+  moved: boolean
 }
 
 export type TimelineProps = PropsRuntime<'conversation.session.header.utilities'>
   & PropsLocale<'dsh.codexTimeline'>
+
+const MINIMUM_MARKERS = 4
+const PREVIEW_DELAY_MS = 150
+const ROW_HEIGHT = 10
 
 function clean(value: string): string {
   return value.replace(/\s+/gu, ' ').trim()
@@ -40,14 +48,22 @@ function markerKind(row: HTMLElement): MarkerKind {
   return 'other'
 }
 
-function markerText(row: HTMLElement, t: (key: TimelineLocaleKey) => string): Pick<Marker, 'title' | 'text' | 'source'> {
-  const source = row.querySelector<HTMLElement>('[data-context-source]')
-  const summary = row.querySelector<HTMLElement>('[data-context-summary]')
-  const visible = clean(row.innerText || row.textContent || '')
-  const title = visible.slice(0, 80) || t('message')
-  const text = visible.length > title.length ? visible.slice(title.length).trim() : clean(summary?.textContent ?? '')
-  const sourceText = source === null ? null : clean(source.textContent ?? '')
-  return { title, text: text || t('noPreview'), source: sourceText }
+function plainRowText(row: HTMLElement): string {
+  const clone = row.cloneNode(true) as HTMLElement
+  for (const element of clone.querySelectorAll('button, [aria-hidden="true"], [data-context-source], [data-context-summary], [data-variant="think"]')) {
+    element.remove()
+  }
+  return clean(clone.innerText || clone.textContent || '')
+}
+
+function userMessageText(row: HTMLElement): string {
+  const userRoot = row.querySelector<HTMLElement>('[data-time-hover-root]')
+  const userStack = userRoot?.firstElementChild as HTMLElement | null | undefined
+  return clean(userStack?.innerText || userStack?.textContent || '') || plainRowText(row)
+}
+
+function assistantResponseText(row: HTMLElement): string {
+  return plainRowText(row)
 }
 
 function findScrollport(): HTMLElement | null {
@@ -57,43 +73,126 @@ function findScrollport(): HTMLElement | null {
 function readMarkers(scrollport: HTMLElement, t: (key: TimelineLocaleKey) => string): Marker[] {
   const flow = scrollport.querySelector<HTMLElement>('[data-chat-flow]')
   if (flow === null) return []
+
   const rows = [...flow.querySelectorAll<HTMLElement>('[data-chat-anchor-key]')]
-  const total = Math.max(1, flow.scrollHeight, scrollport.scrollHeight)
-  return rows.map(row => {
-    const top = row.offsetTop + row.offsetHeight / 2
-    const content = markerText(row, t)
-    return {
-      key: row.dataset.chatAnchorKey ?? String(top),
-      kind: markerKind(row),
-      ratio: Math.max(0, Math.min(1, top / total)),
-      ...content,
-      row,
+  const markers: Marker[] = []
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index]
+    if (markerKind(row) !== 'user') continue
+
+    const title = userMessageText(row) || t('message')
+    let response = ''
+    for (let cursor = index + 1; cursor < rows.length; cursor += 1) {
+      const candidate = rows[cursor]
+      const kind = markerKind(candidate)
+      if (kind === 'user') break
+      if (kind !== 'assistant') continue
+      const text = assistantResponseText(candidate)
+      if (text.length > 0) response = text
     }
-  })
+
+    markers.push({
+      key: row.dataset.chatAnchorKey ?? `user-message-${index}`,
+      title,
+      text: response || t('noPreview'),
+      row,
+    })
+  }
+  return markers
 }
 
 function railLayout(scrollport: HTMLElement): RailLayout | null {
   const rect = scrollport.getBoundingClientRect()
   if (rect.width <= 0 || rect.height <= 0) return null
-  const left = Math.max(4, rect.left + 6)
-  return { left, top: Math.max(4, rect.top), height: Math.max(40, rect.height - 8), right: rect.right }
+  return {
+    left: rect.left + 12,
+    centerY: rect.top + rect.height / 2,
+    maxHeight: Math.max(80, Math.min(rect.height * 0.7, 640)),
+  }
 }
 
-function previewPosition(layout: RailLayout, marker: Marker): { left: number; top: number } {
-  const left = Math.min(layout.left + 36, window.innerWidth - 240)
-  const desiredTop = layout.top + marker.ratio * layout.height - 34
-  const top = Math.max(8, Math.min(window.innerHeight - 150, desiredTop))
-  return { left, top }
+function visibleMarkerKeys(scrollport: HTMLElement, markers: readonly Marker[]): Set<string> {
+  const root = scrollport.getBoundingClientRect()
+  const visible = markers.filter(({ row }) => {
+    const rect = row.getBoundingClientRect()
+    return rect.bottom > root.top + 16 && rect.top < root.bottom
+  })
+  if (visible.length > 0) return new Set(visible.map(marker => marker.key))
+
+  let nearest: Marker | null = null
+  let nearestDistance = Number.POSITIVE_INFINITY
+  for (const marker of markers) {
+    const distance = Math.abs(marker.row.getBoundingClientRect().top - root.top - 16)
+    if (distance < nearestDistance) {
+      nearest = marker
+      nearestDistance = distance
+    }
+  }
+  return new Set(nearest === null ? [] : [nearest.key])
+}
+
+function sameKeys(left: Set<string>, right: Set<string>): boolean {
+  return left.size === right.size && [...left].every(key => right.has(key))
+}
+
+function flashRow(row: HTMLElement): void {
+  const target = row.querySelector<HTMLElement>('[data-time-hover-root]') ?? row
+  target.animate?.([
+    { backgroundColor: 'color-mix(in srgb, currentColor 14%, transparent)' },
+    { backgroundColor: 'color-mix(in srgb, currentColor 14%, transparent)', offset: 0.35 },
+    { backgroundColor: 'color-mix(in srgb, currentColor 5%, transparent)' },
+  ], {
+    duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1400,
+    easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
+  })
 }
 
 export function Timeline({ t }: TimelineProps) {
-  const [visible, setVisible] = useState(true)
   const [layout, setLayout] = useState<RailLayout | null>(null)
   const [markers, setMarkers] = useState<Marker[]>([])
+  const [activeKeys, setActiveKeys] = useState<Set<string>>(() => new Set())
   const [hovered, setHovered] = useState<string | null>(null)
-  const [active, setActive] = useState<string | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [scrubbing, setScrubbing] = useState(false)
+  const [scrubTarget, setScrubTarget] = useState<string | null>(null)
   const scrollportRef = useRef<HTMLElement | null>(null)
-  const clearHoverTimer = useRef<number | null>(null)
+  const railRef = useRef<HTMLDivElement | null>(null)
+  const buttonRefs = useRef(new Map<string, HTMLButtonElement>())
+  const pointerSession = useRef<PointerSession | null>(null)
+  const previewTimer = useRef<number | null>(null)
+  const ignoreNextClick = useRef(false)
+
+  const clearPreviewTimer = (): void => {
+    if (previewTimer.current !== null) {
+      window.clearTimeout(previewTimer.current)
+      previewTimer.current = null
+    }
+  }
+
+  const openPreview = (key: string, delayed: boolean): void => {
+    clearPreviewTimer()
+    setHovered(key)
+    if (!delayed) {
+      setPreviewOpen(true)
+      return
+    }
+    previewTimer.current = window.setTimeout(() => {
+      previewTimer.current = null
+      setPreviewOpen(true)
+    }, PREVIEW_DELAY_MS)
+  }
+
+  const closePreview = (): void => {
+    clearPreviewTimer()
+    setPreviewOpen(false)
+    setHovered(null)
+  }
+
+  const updateViewport = (scrollport: HTMLElement, nextMarkers: readonly Marker[]): void => {
+    setLayout(railLayout(scrollport))
+    const next = visibleMarkerKeys(scrollport, nextMarkers)
+    setActiveKeys(current => sameKeys(current, next) ? current : next)
+  }
 
   const refresh = (): void => {
     const scrollport = findScrollport()
@@ -101,13 +200,12 @@ export function Timeline({ t }: TimelineProps) {
     if (scrollport === null) {
       setLayout(null)
       setMarkers([])
+      setActiveKeys(new Set())
       return
     }
-    setLayout(railLayout(scrollport))
-    setMarkers(readMarkers(scrollport, t))
-    const center = scrollport.scrollTop + scrollport.clientHeight / 2
-    const nearest = [...readMarkers(scrollport, t)].sort((a, b) => Math.abs(a.ratio * scrollport.scrollHeight - center) - Math.abs(b.ratio * scrollport.scrollHeight - center))[0]
-    setActive(nearest?.key ?? null)
+    const nextMarkers = readMarkers(scrollport, t)
+    setMarkers(nextMarkers)
+    updateViewport(scrollport, nextMarkers)
   }
 
   useEffect(() => {
@@ -123,11 +221,10 @@ export function Timeline({ t }: TimelineProps) {
     const observer = new MutationObserver(schedule)
     observer.observe(document.body, { subtree: true, childList: true, characterData: true })
     window.addEventListener('resize', schedule)
-    const timer = window.setInterval(schedule, 1200)
     return () => {
       observer.disconnect()
       window.removeEventListener('resize', schedule)
-      window.clearInterval(timer)
+      clearPreviewTimer()
       if (frame !== null) window.cancelAnimationFrame(frame)
     }
   }, [t])
@@ -135,85 +232,156 @@ export function Timeline({ t }: TimelineProps) {
   useEffect(() => {
     const scrollport = scrollportRef.current
     if (scrollport === null) return
+    let frame: number | null = null
     const onScroll = (): void => {
-      setLayout(railLayout(scrollport))
-      const center = scrollport.scrollTop + scrollport.clientHeight / 2
-      const next = [...markers].sort((a, b) => Math.abs(a.ratio * scrollport.scrollHeight - center) - Math.abs(b.ratio * scrollport.scrollHeight - center))[0]
-      setActive(next?.key ?? null)
+      if (frame !== null) return
+      frame = window.requestAnimationFrame(() => {
+        frame = null
+        updateViewport(scrollport, markers)
+      })
     }
     scrollport.addEventListener('scroll', onScroll, { passive: true })
-    return () => { scrollport.removeEventListener('scroll', onScroll) }
+    return () => {
+      scrollport.removeEventListener('scroll', onScroll)
+      if (frame !== null) window.cancelAnimationFrame(frame)
+    }
   }, [markers])
 
   const selected = useMemo(() => markers.find(marker => marker.key === hovered) ?? null, [hovered, markers])
-  if (layout === null || markers.length === 0 || !visible) {
-    return (
-      <button type="button" className={css.trigger} aria-expanded={visible} aria-label={t('navigationOff')} onClick={() => { setVisible(true); window.setTimeout(refresh, 0) }}>
-        {t('navigation')}
-      </button>
-    )
+
+  const scrollToMarker = (marker: Marker, behavior: ScrollBehavior): void => {
+    marker.row.scrollIntoView({ behavior, block: 'start' })
+    flashRow(marker.row)
   }
+
+  const markerAtPointer = (clientY: number): Marker | null => {
+    const rail = railRef.current
+    if (rail === null || markers.length === 0) return null
+    const rect = rail.getBoundingClientRect()
+    const contentY = Math.max(0, Math.min(rect.height - 1, clientY - rect.top)) + rail.scrollTop
+    const index = Math.max(0, Math.min(markers.length - 1, Math.floor(contentY / ROW_HEIGHT)))
+    return markers[index] ?? null
+  }
+
+  const finishPointerSession = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const session = pointerSession.current
+    if (session === null || session.pointerId !== event.pointerId) return
+    pointerSession.current = null
+    setScrubbing(false)
+    setScrubTarget(null)
+    ignoreNextClick.current = session.moved
+    if (session.captureTarget.hasPointerCapture?.(event.pointerId)) {
+      session.captureTarget.releasePointerCapture?.(event.pointerId)
+    }
+  }
+
+  if (layout === null || markers.length < MINIMUM_MARKERS) return null
+
+  const selectedButton = selected === null ? null : buttonRefs.current.get(selected.key) ?? null
+  const buttonRect = selectedButton?.getBoundingClientRect() ?? null
+  const previewLeft = buttonRect === null ? layout.left + 36 : buttonRect.right
+  const previewTop = buttonRect === null
+    ? layout.centerY
+    : Math.max(8, Math.min(window.innerHeight - 112, buttonRect.top + buttonRect.height / 2 - 46))
 
   const portal = (
     <div className={css.portal}>
-      <div
-        className={css.rail}
+      <nav
+        className={css.railShell}
         aria-label={t('aria')}
-        style={{ left: layout.left, top: layout.top, height: layout.height }}
-        onMouseLeave={() => {
-          clearHoverTimer.current = window.setTimeout(() => { setHovered(null) }, 160)
-        }}
-        onMouseEnter={() => {
-          if (clearHoverTimer.current !== null) window.clearTimeout(clearHoverTimer.current)
-        }}
+        style={{ left: layout.left, top: layout.centerY }}
       >
-        <div className={css.track} />
-        {markers.map(marker => (
-          <button
-            type="button"
-            key={marker.key}
-            className={css.marker}
-            data-kind={marker.kind}
-            data-active={marker.key === active || undefined}
-            style={{ top: `${marker.ratio * 100}%` }}
-            aria-label={marker.title}
-            onMouseEnter={() => { setHovered(marker.key) }}
-            onClick={() => {
-              const scrollport = scrollportRef.current
-              if (scrollport === null) return
-              scrollport.scrollTo({ top: Math.max(0, marker.row.offsetTop - scrollport.clientHeight / 3), behavior: 'smooth' })
-            }}
-          />
-        ))}
-      </div>
-      {selected !== null ? (() => {
-        const position = previewPosition(layout, selected)
-        return (
-          <div
-            className={css.preview}
-            style={{ left: position.left, top: position.top }}
-            onMouseEnter={() => {
-              if (clearHoverTimer.current !== null) window.clearTimeout(clearHoverTimer.current)
-            }}
-            onMouseLeave={() => { setHovered(null) }}
-          >
-            <div className={css.previewTitle}>{selected.title}</div>
-            <p className={css.previewText}>{selected.text}</p>
-            {selected.source !== null ? <div className={css.previewMeta}>{t(selected.kind === 'context' ? 'contextInjection' : 'message')} · {selected.source}</div> : null}
+        <div
+          ref={railRef}
+          className={css.rail}
+          data-scrubbing={scrubbing || undefined}
+          style={{ maxHeight: layout.maxHeight }}
+          onPointerLeave={() => {
+            if (pointerSession.current === null) closePreview()
+          }}
+          onPointerDownCapture={(event) => {
+            if (event.button !== 0) return
+            const marker = markerAtPointer(event.clientY)
+            if (marker === null) return
+            clearPreviewTimer()
+            pointerSession.current = {
+              pointerId: event.pointerId,
+              captureTarget: event.currentTarget,
+              startKey: marker.key,
+              currentKey: marker.key,
+              moved: false,
+            }
+            event.currentTarget.setPointerCapture?.(event.pointerId)
+            setScrubbing(true)
+            setScrubTarget(marker.key)
+            openPreview(marker.key, false)
+          }}
+          onPointerMove={(event) => {
+            const session = pointerSession.current
+            if (session === null || session.pointerId !== event.pointerId) return
+            if (event.buttons % 2 === 0) {
+              finishPointerSession(event)
+              return
+            }
+            const marker = markerAtPointer(event.clientY)
+            if (marker === null || marker.key === session.currentKey) return
+            session.currentKey = marker.key
+            session.moved = session.moved || marker.key !== session.startKey
+            setScrubTarget(marker.key)
+            openPreview(marker.key, false)
+            scrollToMarker(marker, 'auto')
+          }}
+          onPointerUpCapture={finishPointerSession}
+          onPointerCancelCapture={finishPointerSession}
+          onLostPointerCapture={finishPointerSession}
+        >
+          <div className={css.markerList}>
+            {markers.map(marker => (
+              <button
+                ref={(node) => {
+                  if (node === null) buttonRefs.current.delete(marker.key)
+                  else buttonRefs.current.set(marker.key, node)
+                }}
+                type="button"
+                key={marker.key}
+                className={css.markerButton}
+                data-marker-key={marker.key}
+                data-scrub-target={scrubTarget === marker.key || undefined}
+                aria-current={activeKeys.has(marker.key) ? 'true' : undefined}
+                aria-label={marker.title}
+                onPointerEnter={() => { openPreview(marker.key, true) }}
+                onFocus={() => { openPreview(marker.key, false) }}
+                onBlur={() => { if (!scrubbing) closePreview() }}
+                onClick={() => {
+                  if (ignoreNextClick.current) {
+                    ignoreNextClick.current = false
+                    return
+                  }
+                  openPreview(marker.key, false)
+                  scrollToMarker(marker, 'smooth')
+                }}
+              >
+                <span className={css.markerSlot}>
+                  <span className={css.marker} />
+                </span>
+              </button>
+            ))}
           </div>
-        )
-      })() : null}
+        </div>
+      </nav>
+      {previewOpen && selected !== null ? (
+        <div
+          className={css.preview}
+          style={{ left: previewLeft, top: previewTop }}
+        >
+          <div className={css.previewTitle}>{selected.title}</div>
+          <p className={css.previewText}>{selected.text}</p>
+        </div>
+      ) : null}
     </div>
   )
 
-  return (
-    <>
-      <button type="button" className={css.trigger} aria-expanded="true" aria-label={t('navigationOn')} onClick={() => { setVisible(false) }}>
-        {t('navigation')}
-      </button>
-      {createPortal(portal, document.body)}
-    </>
-  )
+  return createPortal(portal, document.body)
 }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
