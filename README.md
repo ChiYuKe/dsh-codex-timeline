@@ -27,7 +27,7 @@ dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline
 推荐锁定版本安装（后续推送不会悄悄改变实际运行的内容）：
 
 ```sh
-dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline#v0.1.1
+dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline#v0.1.0
 ```
 
 仓库已提交构建产物 `lib/`，且没有 `prepare` 脚本，因此**不需要 allowBuilds 授权**。也可以从本地 checkout 安装（`./dsh-codex-timeline` 是相对路径示例——从"包含该插件目录"的位置执行；换成你本机的实际相对路径或绝对路径均可）：
