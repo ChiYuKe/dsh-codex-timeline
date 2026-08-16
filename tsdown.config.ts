@@ -1,5 +1,5 @@
 /**
- * Self-contained tsdown config for the dsh-codex-timeline bundle. Emits the
+ * Self-contained tsdown config for the dsh-message-map bundle. Emits the
  * Host half (lib/index.js) plus the browser client bundle (lib/client.js) with
  * the closure-factory handoff the DSH web shell expects: the bundle calls
  * window.__ModuleLoader__.load({ id, factory }) and resolves platform modules
@@ -14,7 +14,7 @@ import { basename, dirname, resolve as resolvePath, sep } from 'node:path'
 import { transform } from 'lightningcss'
 import type { UserConfig } from 'tsdown'
 
-const ID = 'dsh-codex-timeline'
+const ID = 'dsh-message-map'
 
 /**
  * Module specifiers the DSH web shell shares into the frozen module table.

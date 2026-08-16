@@ -12,7 +12,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-codex-timeline: dictionaries')
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
     name: 'conversation.session.header.utilities',
-    id: 'dsh-codex-timeline',
+    id: 'dsh-message-map',
     order: 30,
     locale: NS,
   }, Timeline))

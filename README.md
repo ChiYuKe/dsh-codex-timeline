@@ -1,4 +1,4 @@
-# dsh-codex-timeline
+# dsh-message-map
 
 为 DSH 移植 Codex 风格的会话消息导航轨道（Message map）。
 
@@ -21,13 +21,13 @@
 **从 GitHub 安装（其他用户使用）：**
 
 ```sh
-dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline
+dsh plugin --profile web add github:ChiYuKe/dsh-message-map
 ```
 
 推荐锁定版本安装（后续推送不会悄悄改变实际运行的内容）：
 
 ```sh
-dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline#v0.1.0
+dsh plugin --profile web add github:ChiYuKe/dsh-message-map#v0.1.0
 ```
 
 仓库已提交构建产物 `lib/`，且没有 `prepare` 脚本，因此**不需要 allowBuilds 授权**，装完即可使用。
@@ -35,7 +35,7 @@ dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline#v0.1.0
 **本地安装（开发/测试用，路径指向包含 `package.json` 的插件目录，相对路径或绝对路径均可）：**
 
 ```sh
-dsh plugin --profile web add /path/to/dsh-codex-timeline
+dsh plugin --profile web add /path/to/dsh-message-map
 ```
 
 本地安装为 link 方式：修改 `src/` 后需先 `pnpm build` 重新构建 `lib/`，再刷新页面生效。
@@ -66,4 +66,4 @@ pnpm build     # tsdown 重新生成 lib/index.js 与 lib/client.js
 
 ## 发布到 npm（可选）
 
-`files` 已包含 `lib/`、`cordis.patch.yml`、`README.md` 与 `LICENSE`；`npm publish` 后用户可直接 `dsh plugin --profile web add dsh-codex-timeline`。
+`files` 已包含 `lib/`、`cordis.patch.yml`、`README.md` 与 `LICENSE`；`npm publish` 后用户可直接 `dsh plugin --profile web add dsh-message-map`。
