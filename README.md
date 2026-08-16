@@ -1,0 +1,53 @@
+# dsh-codex-timeline
+
+为 DSH 移植 Codex 风格的会话消息导航轨道（Message map）。
+
+- 在会话右上角显示"消息导航"按钮；
+- 在聊天区域左侧按消息位置绘制纵向刻度；
+- 悬停刻度显示消息摘要和上下文注入来源；
+- 点击刻度平滑跳转到对应消息；
+- 监听消息追加、加载历史、窗口尺寸和滚动状态变化。
+
+这个插件只使用 DSH 已渲染的会话节点，不修改会话数据，也不执行 Host 命令。
+
+## 安装
+
+从 GitHub 安装（`<你的用户名>` 换成实际 GitHub 用户名）：
+
+```sh
+dsh plugin --profile web add github:<你的用户名>/dsh-codex-timeline
+```
+
+仓库已提交构建产物 `lib/`，且没有 `prepare` 脚本，因此**不需要 allowBuilds 授权**。也可以从本地 checkout 安装：
+
+```sh
+dsh plugin --profile web add ./dsh-codex-timeline
+```
+
+## 使用
+
+```sh
+dsh --profile web
+```
+
+打开任意会话，右上角出现"消息导航"按钮；点击显示/隐藏聊天区域左侧的消息刻度。
+
+## 开发与构建
+
+```sh
+pnpm install
+pnpm build     # tsdown 重新生成 lib/index.js 与 lib/client.js
+```
+
+发布前把重新构建的 `lib/` 一起提交进仓库（git 安装直接使用仓库里的构建产物）。
+
+## 依赖
+
+- peerDependencies：`react`/`react-dom`、`@deepseek-ai/cordis` 与三个客户端平台模块
+  （`@deepseek-ai/dsh-client-locale`、`@deepseek-ai/dsh-client-runtime`、`@deepseek-ai/dsh-client-ui-slots`），
+  由 DSH web 壳的 loader 模块表提供，运行时经 `window.__ModuleLoader__` 解析。
+- devDependencies：`tsdown` + `lightningcss`，用于自包含构建。
+
+## 发布到 npm（可选）
+
+`files` 已包含 `lib/`、`cordis.patch.yml`、`README.md` 与 `LICENSE`；`npm publish` 后用户可直接 `dsh plugin --profile web add dsh-codex-timeline`。
