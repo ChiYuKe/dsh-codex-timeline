@@ -9,7 +9,7 @@ const NS = 'dsh.codexTimeline'
 export const inject = ['slots', 'locale']
 
 export function apply(ctx: ClientContext): void {
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-codex-timeline: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-message-map: dictionaries')
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
     name: 'conversation.session.header.utilities',
     id: 'dsh-message-map',
