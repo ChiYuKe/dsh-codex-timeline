@@ -12,10 +12,10 @@
 
 ## 安装
 
-从 GitHub 安装（`<你的用户名>` 换成实际 GitHub 用户名）：
+从 GitHub 安装：
 
 ```sh
-dsh plugin --profile web add github:<你的用户名>/dsh-codex-timeline
+dsh plugin --profile web add github:ChiYuKe/dsh-codex-timeline
 ```
 
 仓库已提交构建产物 `lib/`，且没有 `prepare` 脚本，因此**不需要 allowBuilds 授权**。也可以从本地 checkout 安装：
