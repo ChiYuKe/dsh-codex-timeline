@@ -39,7 +39,7 @@ dsh plugin --profile web add github:ChiYuKe/dsh-message-map
 锁定版本安装（防止后续推送悄悄改变实际运行的内容）：
 
 ```sh
-dsh plugin --profile web add github:ChiYuKe/dsh-message-map#v0.1.0
+dsh plugin --profile web add github:ChiYuKe/dsh-message-map#v0.1.1
 ```
 
 仓库已提交构建产物 `lib/`，且没有 `prepare` 脚本——**不需要 allowBuilds 授权**，装完即用。
