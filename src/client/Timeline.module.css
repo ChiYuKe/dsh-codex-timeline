@@ -146,7 +146,7 @@
 .preview {
   animation: preview-in .12s cubic-bezier(.23, 1, .32, 1);
   backdrop-filter: blur(4px);
-  background: color-mix(in srgb, var(--dsw-alias-surface-elevated-secondary, #323337) 95%, transparent);
+  background: color-mix(in srgb, var(--dsw-alias-bg-overlay) 95%, transparent);
   border: 0;
   border-radius: 12px;
   box-shadow: 0 12px 36px rgba(0, 0, 0, .35), 0 2px 8px rgba(0, 0, 0, .22);
